@@ -16,38 +16,31 @@ from Loss_Metric.metric_factory import plot_all_metrics_single,Metrics
 from Loss_Metric.loss_factory import get_loss_function,Residual_vis 
 warnings.filterwarnings('ignore')
 
-# ========== 新增：日志配置 ==========
-import logging  # 导入logging模块
-from logging.handlers import RotatingFileHandler  # 可选：防止log文件过大
-# 初始化日志
-# TQNet
+
+import logging  #
+from logging.handlers import RotatingFileHandler  
+
 os.makedirs("./OpenLTM/TSout", exist_ok=True)
 def init_logger(log_file_path):
-    
-    # 日志格式：时间 - 日志级别 - 内容
+
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
     # 配置日志
     logging.basicConfig(
-        level=logging.INFO,  # 日志级别（INFO：普通信息，DEBUG：调试信息，ERROR：错误）
+        level=logging.INFO,  
         format=log_format,
         handlers=[
-            # 1. 输出到log文件
-            RotatingFileHandler(  # 可选：用RotatingFileHandler自动切割大文件
+            RotatingFileHandler(  
                 log_file_path,
-                maxBytes=10*1024*1024,  # 单个log文件最大10MB
-                backupCount=5,  # 最多保留5个旧log文件
+                maxBytes=10*1024*1024, 
+                backupCount=5,  
                 encoding='utf-8'
             ),
-            # # 2. 同时输出到终端
-            # logging.StreamHandler()
         ]
     )
     return logging.getLogger(__name__)
 
-# 初始化日志（指定log文件保存路径，比如项目根目录下的training.log）TQNet
 logger = init_logger(log_file_path='./OpenLTM/TSout/training.log')
 
-# ========== 日志配置结束 ==========
 class Exp_Forecast(Exp_Basic):
     def __init__(self, args):
         super(Exp_Forecast, self).__init__(args)
@@ -56,7 +49,6 @@ class Exp_Forecast(Exp_Basic):
         if self.args.ddp:
             self.device = torch.device('cuda:{}'.format(self.args.local_rank))
         else:
-            # for methods that do not use ddp (e.g. finetuning-based LLM4TS models)
             self.device = self.args.gpu
         
         model = self.model_dict[self.args.model].Model(self.args)
@@ -130,7 +122,6 @@ class Exp_Forecast(Exp_Basic):
                         batch_y = batch_y[:, :, -1]
                 
                 # loss = criterion(outputs, batch_y)
-                # 参照原来PS Loss的逻辑，在计算验证的损失的时候依旧使用MSE损失
                 if self.args.loss == 'psloss' or self.args.loss == 'psloss_taq': 
                     # print(self.model.output_proj.parameters)
                     mse_loss = nn.MSELoss()
@@ -157,7 +148,6 @@ class Exp_Forecast(Exp_Basic):
             total_loss = np.average(total_loss, weights=total_count)
             
         if self.args.model == 'gpt4ts':
-            # GPT4TS just requires to train partial layers
             self.model.in_layer.train()
             self.model.out_layer.train()
         else: 
@@ -208,7 +198,6 @@ class Exp_Forecast(Exp_Basic):
                     else:
                         outputs = outputs[:, :, -1]
                         batch_y = batch_y[:, :, -1]
-                # print(outputs.shape, batch_y.shape)
                 if self.args.loss == 'psloss' or self.args.loss == 'psloss_taq':
                     loss = criterion(outputs, batch_y,self.model)
                 else   :
@@ -226,9 +215,8 @@ class Exp_Forecast(Exp_Basic):
                         iter_count = 0
                         time_now = time.time()
 
-# ========== 格式化训练迭代日志，制表符分隔+固定宽度对齐 ==========
                     log_msg = (
-                        "Ititers: {iters:5d}\t | "     #加｜分割
+                        "Ititers: {iters:5d}\t | "     
                         "Loss: {loss:.7f}\t | "
                         "Speed: {speed:.4f}s/iter\t | "
                         "Left Time: {left:.4f}s"
@@ -239,7 +227,7 @@ class Exp_Forecast(Exp_Basic):
                         left=left_time
                     )
                     logger.info(log_msg)
-                    # ========== 日志配置结束 ==========
+
                 loss.backward()
                 model_optim.step()
 
@@ -255,14 +243,14 @@ class Exp_Forecast(Exp_Basic):
             if early_stopping.early_stop:
                 if (self.args.ddp and self.args.local_rank == 0) or not self.args.ddp:
                     print("Early stopping")
-                    # ========== 增加早停的日志打印 ==========
+                    
                 logger.info("Early stopping")
-                # ========== 日志配置结束 ==========
+               
                 break
-            # ========== 增加每个 epoch 结束后的日志打印 ==========
+
             logger.info("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             logger.info("Epoch: {0}, Steps: {1} |  Vali Loss: {2:.7f} Test Loss: {3:.7f}".format(epoch + 1, train_steps,  vali_loss, test_loss))
-            # ========== 日志配置结束 ==========
+
             if self.args.cosine:
                 scheduler.step()
                 if (self.args.ddp and self.args.local_rank == 0) or not self.args.ddp:
@@ -281,16 +269,14 @@ class Exp_Forecast(Exp_Basic):
         return self.model
 
     def test(self, setting, test=0):
-        # 每个模型创建自己的Metrics实例，状态完全独立
         metrics = Metrics()
         test_data, test_loader = self._get_data(flag='test')
 
         print("info:", self.args.test_seq_len, self.args.input_token_len, self.args.output_token_len, self.args.test_pred_len)
         if test:
             print('loading model')
-            # ========== 增加加载模型的日志打印 ==========
+
             logger.info("loading model")
-            # ========== 日志配置结束 ==========
             # setting = self.args.test_dir
             best_model_path = self.args.test_file_name
             print("loading model from {}".format(os.path.join(self.args.checkpoints, setting, best_model_path)))
@@ -308,8 +294,7 @@ class Exp_Forecast(Exp_Basic):
         time_now = time.time()
         test_steps = len(test_loader)
         iter_count = 0
-        ############### 按batch平均
-        ############### 按batch平均
+
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
@@ -338,9 +323,9 @@ class Exp_Forecast(Exp_Basic):
                 batch_y = batch_y.detach().cpu()
                 pred = outputs
                 true = batch_y
-                ###########################修改metric#######################
+
                 metrics(pred, true)
-                ############### 按batch平均
+
 
                 # preds.append(pred)
                 # trues.append(true)
@@ -371,7 +356,7 @@ class Exp_Forecast(Exp_Basic):
                         batch_idx=i,
                         save_dir_base=folder_path+ "Residual_vis"
                     )
-        # 一次性获取完整的最终误差分布画像
+
         final_profile = metrics.finalize()
         (
             tar, mae, mse, equal_ratio, overest_ratio, overest_sum_ratio,
@@ -379,14 +364,12 @@ class Exp_Forecast(Exp_Basic):
             window_pos_avg_loss, p100, p80
         ) = final_profile
 
-        # ========== results输出目录调整 ==========
-        # folder_path = './results/' + setting + '/'
+
         folder_path = './OpenLTM/TSout/results/' + setting + '/'
-        # ========== results输出目录调整结束 ==========
+
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        # ========== 增加最终测试结果的日志打印 ==========
         timestamp = time.strftime("%Y-%m-%d %H:%M", time.localtime())   
         logger.info('mse:{:.3f}, mae:{:.3f}'.format(mse, mae))
         logger.info('P(1.0): {:.3f}, P(0.8): {:.3f}'.format(p100, p80))
@@ -397,7 +380,7 @@ class Exp_Forecast(Exp_Basic):
         logger.info('PA: {:.3f}, VA: {:.3f}'.format(peak_acc, valley_acc))
         logger.info('PVMAE: {:.3f}'.format(peak_valley_mae))
         logger.info(window_pos_avg_loss)
-            # 在你的test函数末尾添加
+
         save_path="./OpenLTM/TSout/metrics/"
         if not os.path.exists(save_path):
             os.makedirs(save_path)
@@ -418,13 +401,11 @@ class Exp_Forecast(Exp_Basic):
             winpa=window_pos_avg_loss,
             save_path=f'{save_path}{setting}.pdf'
         )   
-         # ========== 日志配置结束 ==========
 
-        # print('original:mse:{}, mae:{}'.format(mse, mae))
         f = open("./OpenLTM/TSout/result_sum.txt", 'a')
-        # ========== 增加当前时间戳（格式化：年-月-日 时:分）
+
         f.write(timestamp + "  \n")
-        # ========== 日志配置结束 ==========
+
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}'.format(mse, mae))
         f.write('\n')
