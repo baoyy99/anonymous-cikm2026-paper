@@ -20,38 +20,35 @@ import numpy as np
 
 warnings.filterwarnings('ignore')
 
-# ========== 新增：日志配置 ==========
-import logging  # 导入logging模块
-from logging.handlers import RotatingFileHandler  # 可选：防止log文件过大
-# 初始化日志
-# TQNet
+
+import logging 
+from logging.handlers import RotatingFileHandler  
+
 os.makedirs("./TQNet/TSout", exist_ok=True)
 def init_logger(log_file_path):
     
-    # 日志格式：时间 - 日志级别 - 内容
+
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
-    # 配置日志
+
     logging.basicConfig(
-        level=logging.INFO,  # 日志级别（INFO：普通信息，DEBUG：调试信息，ERROR：错误）
+        level=logging.INFO,  
         format=log_format,
         handlers=[
-            # 1. 输出到log文件
-            RotatingFileHandler(  # 可选：用RotatingFileHandler自动切割大文件
+
+            RotatingFileHandler(  
                 log_file_path,
-                maxBytes=10*1024*1024,  # 单个log文件最大10MB
-                backupCount=5,  # 最多保留5个旧log文件
+                maxBytes=10*1024*1024, 
+                backupCount=5,  
                 encoding='utf-8'
             ),
-            # # 2. 同时输出到终端
-            # logging.StreamHandler()
+
         ]
     )
     return logging.getLogger(__name__)
 
-# 初始化日志（指定log文件保存路径，比如项目根目录下的training.log）TQNet
+
 logger = init_logger(log_file_path='./TQNet/TSout/training.log')
 
-# ========== 日志配置结束 ==========
 
 class Exp_Main(Exp_Basic):
     def __init__(self, args):
@@ -92,7 +89,6 @@ class Exp_Main(Exp_Basic):
     # def _select_criterion(self):
     #     criterion = nn.MSELoss()
     #     return criterion
-       # 我的调整后的损失函数选择方法，增加日志打印功能
     def _select_criterion(self):
         criterion = get_loss_function(self.args)
         logger.info(f"🔹 loss function: {criterion.__class__.__name__}")
@@ -144,9 +140,7 @@ class Exp_Main(Exp_Basic):
                 true = batch_y.detach()
 
                 # loss = criterion(pred, true)
-                # 参照原来PS Loss的逻辑，在计算验证的损失的时候依旧使用MSE损失
                 if self.args.loss == 'psloss' or self.args.loss == 'psloss_taq': 
-                    # print(self.model.output_proj.parameters)
                     mse_loss = nn.MSELoss()
                     loss = mse_loss(pred, true)
                 else   :
@@ -162,19 +156,17 @@ class Exp_Main(Exp_Basic):
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
 
-        #========== checkpoints输出目录调整 ==========
-        # path = os.path.join(self.args.checkpoints, setting)
+
         path = os.path.join('./TQNet/TSout/checkpoints', setting)
-        #========== checkpoints输出目录调整结束 ==========
+
         if not os.path.exists(path):
             os.makedirs(path)
 
-        # ========== 增加每个 epoch 开始的日志打印 ==========
-        # logger.info(self.args.model_id)
+
         logger.info( setting)
         logger.info("loss: {} dataset: {} model: {}".format(self.args.loss, self.args.data_path, self.args.model))
         logger.info("begin training")
-        # ========== 日志配置结束 ==========
+
 
         time_now = time.time()
 
@@ -194,22 +186,21 @@ class Exp_Main(Exp_Basic):
                                             max_lr=self.args.learning_rate)
 
         for epoch in range(self.args.train_epochs):
-            #============= 增加第10个epoch时的测试逻辑 ==============
-            # 第10个epoch时执行test逻辑
+
             if epoch == 10:
                 logger.info("===== Epoch 10: Running test with current checkpoint =====")
-                # 保存当前模型为临时checkpoint
+
                 temp_ckpt_path = os.path.join(path, 'temp_epoch10_checkpoint.pth')
                 torch.save(self.model.state_dict(), temp_ckpt_path)
-                # 加载临时checkpoint并执行test
+
                 self.model.load_state_dict(torch.load(temp_ckpt_path))
                 self.test(setting, test=1)
-                # 删除临时checkpoint（可选，如需保留可注释）
+
                 os.remove(temp_ckpt_path)
                 logger.info("===== Epoch 10: Test completed, resume training =====")
-                # 模型切回训练模式
+     
                 self.model.train()
-            #============= 增加第10个epoch时的测试逻辑 ==============                   
+            
 
             iter_count = 0
             train_loss = []
@@ -281,9 +272,9 @@ class Exp_Main(Exp_Basic):
                     iter_count = 0
                     time_now = time.time()
 
-                    # ========== 格式化训练迭代日志，制表符分隔+固定宽度对齐 ==========
+     
                     log_msg = (
-                        "Ititers: {iters:5d}\t | "     #加｜分割
+                        "Ititers: {iters:5d}\t | "    
                         "Loss: {loss:.7f}\t | "
                         "Speed: {speed:.4f}s/iter\t | "
                         "Left Time: {left:.4f}s"
@@ -294,7 +285,7 @@ class Exp_Main(Exp_Basic):
                         left=left_time
                     )
                     logger.info(log_msg)
-                    # ========== 日志配置结束 ==========
+    
 
                 if self.args.use_amp:
                     scaler.scale(loss).backward()
@@ -304,8 +295,6 @@ class Exp_Main(Exp_Basic):
                     loss.backward()
                     model_optim.step()
 
-                # current_memory = torch.cuda.max_memory_allocated() / 1024 ** 2
-                # max_memory = max(max_memory, current_memory)
 
                 if self.args.lradj == 'TST':
                     adjust_learning_rate(model_optim, scheduler, epoch + 1, self.args, printout=False)
@@ -321,14 +310,14 @@ class Exp_Main(Exp_Basic):
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
-                # ========== 增加早停的日志打印 ==========
+               
                 logger.info("Early stopping")
-                # ========== 日志配置结束 ==========
+       
                 break
-            # ========== 增加每个 epoch 结束后的日志打印 ==========
+
             logger.info("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             logger.info("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(epoch + 1, train_steps, train_loss, vali_loss, test_loss))
-            # ========== 日志配置结束 ==========
+
 
             if self.args.lradj != 'TST':
                 adjust_learning_rate(model_optim, scheduler, epoch + 1, self.args)
@@ -338,36 +327,31 @@ class Exp_Main(Exp_Basic):
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 
-        # print(f"Max Memory (MB): {max_memory}")
+   
 
         return self.model
 
     def test(self, setting, test=0):
-        # 每个模型创建自己的Metrics实例，状态完全独立
+
         metrics = Metrics()
         test_data, test_loader = self._get_data(flag='test')
 
         if test:
             print('loading model')
-            # ========== 增加加载模型的日志打印 ==========
+  
             logger.info("loading model")
-            # ========== 日志配置结束 ==========
-            #========== checkpoints检索目录调整 ==========
-            # self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth')))
+  
             self.model.load_state_dict(torch.load(os.path.join('./TQNet/TSout/checkpoints/' + setting, 'checkpoint.pth')))
-            # self.model.load_state_dict(torch.load(os.path.join('./TQNet/TSout0427/checkpoints/' + setting, 'checkpoint.pth')))
-            #========== checkpoints检索目录调整结束 ==========
+
         preds = []
         trues = []
         inputx = []
-        # ========== test_results输出目录调整 ==========
-        # folder_path = './test_results/' + setting + '/'
+ 
         folder_path = './TQNet/TSout/test_results/' + setting + '/'
-        # ========== test_results输出目录调整结束 ==========
+
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-        ############### 按batch平均
-        ############### 按batch平均
+ 
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_cycle) in enumerate(test_loader):
@@ -416,9 +400,9 @@ class Exp_Main(Exp_Basic):
 
                 pred = outputs  # outputs.detach().cpu().numpy()  # .squeeze()
                 true = batch_y  # batch_y.detach().cpu().numpy()  # .squeeze()
-                ############### 按batch平均
+
                 metrics(pred, true)
-                ############### 按batch平均
+     
 
                 # inputx.append(batch_x.detach().cpu().numpy())
                 if i % 10 == 0:
@@ -439,7 +423,6 @@ class Exp_Main(Exp_Basic):
                         save_dir_base=folder_path
                     )
                 # ==========================================================
-        # 一次性获取完整的最终误差分布画像
         final_profile = metrics.finalize()
         (
             tar, mae, mse, equal_ratio, overest_ratio, overest_sum_ratio,
@@ -452,15 +435,12 @@ class Exp_Main(Exp_Basic):
             exit()
 
 
-        # result save
-        # ========== results输出目录调整 ==========
-        # folder_path = './results/' + setting + '/'
+
         folder_path = './TQNet/TSout/results/' + setting + '/'
-        # ========== results输出目录调整结束 ==========
+
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        # ========== 增加最终测试结果的日志打印 ==========
         timestamp = time.strftime("%Y-%m-%d %H:%M", time.localtime())   
         logger.info('mse:{:.3f}, mae:{:.3f}'.format(mse, mae))
         logger.info('P(1.0): {:.3f}, P(0.8): {:.3f}'.format(p100, p80))
@@ -471,7 +451,7 @@ class Exp_Main(Exp_Basic):
         logger.info('PA: {:.3f}, VA: {:.3f}'.format(peak_acc, valley_acc))
         logger.info('PVMAE: {:.3f}'.format(peak_valley_mae))
         logger.info(window_pos_avg_loss)
-            # 在你的test函数末尾添加
+
         save_path="./TQNet/TSout/metrics/"
         if not os.path.exists(save_path):
             os.makedirs(save_path)
@@ -493,13 +473,11 @@ class Exp_Main(Exp_Basic):
             winpa=window_pos_avg_loss,
             save_path=f'{save_path}{setting}.pdf'
         )   
-         # ========== 日志配置结束 ==========
-
-        # print('original:mse:{}, mae:{}'.format(mse, mae))
+        
         f = open("./TQNet/TSout/result_sum.txt", 'a')
-        # ========== 增加当前时间戳（格式化：年-月-日 时:分）
+      
         f.write(timestamp + "  \n")
-        # ========== 日志配置结束 ==========
+
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}'.format(mse, mae))
         f.write('\n')
